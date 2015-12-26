@@ -11,11 +11,11 @@ bool pngutil_load(std::string name, uint32_t &width, uint32_t &height, std::vect
 	{ //check for specials
 		auto found = name.find(":");
 		if (found < name.size()) {
-			special = name.substr(0,found);
+			special = name.substr(0,found+1);
 			special_data.str(name.substr(found+1));
 		}
 	}
-	if (special == "blank") {
+	if (special == "blank:") {
 		char x;
 		if (!((special_data >> width >> x >> height) && x == 'x' && !(special_data >> x))) {
 			std::cerr << "Error creating image; expected 'blank:<w>x<h>', got '" << name << "'." << std::endl;
@@ -23,13 +23,18 @@ bool pngutil_load(std::string name, uint32_t &width, uint32_t &height, std::vect
 		}
 		data.resize(width * height, 0);
 		return true;
-	} else if (special == "flip") {
+	} else if (special == "flip:") {
 		if (!load_png(special_data.str(), width, height, data, LowerLeftOrigin)) {
 			std::cerr << "Error creating image; expected 'flip:image.png', got '" << name << "'." << std::endl;
 			return false;
 		}
 		return true;
+	} else if (special == ":") {
+		return load_png(special_data.str(), width, height, data, UpperLeftOrigin);
 	} else {
+		if (special != "") {
+			std::cout << "Unrecognized special '" << special << "', treating it as part of the filename." << std::endl;
+		}
 		return load_png(name, width, height, data, UpperLeftOrigin);
 	}
 }
