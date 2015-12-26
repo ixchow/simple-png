@@ -1,0 +1,24 @@
+SubDir TOP ;
+
+if $(LOCATE_TARGET) = . {
+	LOCATE_TARGET = objs ;
+} else {
+	LOCATE_TARGET = objs$(SEP)$(SUBDIR) ;
+}
+
+rule PNGUtil $(1) : $(2) {
+	PNGFlags $(1) ;
+	PNGLibs $(1) ;
+	Objects $(1:S=.cpp) ;
+	Executable $(1) : $(1)$(SUFOBJ) pngutil_load$(SUFOBJ) load_save_png$(SUFOBJ) $(2:S=$(SUFOBJ)) ;
+}
+
+PNGFlags pngutil_load load_save_png ;
+Objects pngutil_load.cpp load_save_png.cpp ;
+
+PNGUtil crop ;
+PNGUtil swizzle ;
+PNGUtil blur ;
+PNGUtil disk ;
+PNGUtil downsample ;
+PNGUtil place ;

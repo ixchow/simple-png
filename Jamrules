@@ -1,0 +1,174 @@
+#------------------------
+#Set up the basic paths:
+
+LOCATE_TARGET = objs ;
+DISTDIR = dist ;
+
+if $(OS) = NT {
+	SEP = \\ ;
+} else {
+	SEP = / ;
+}
+
+HDRS = . ;
+
+rule Executable $(1) : $(2) {
+	local LOCATE_TARGET = $(DISTDIR) ;
+	MainFromObjects $(1) : $(2) ;
+}
+
+#------------------------
+#Convenience rule for that delightful shotgun approach:
+rule ObjectFlags $(1) : $(2) {
+	ObjectC++Flags $(1) : $(2) ;
+	ObjectCcFlags $(1) : $(2) ;
+}
+
+if $(OS) = NT {
+	if $(JAM_TOOLSET) = MINGW {
+		#TODO
+	} else { #else, use visual studio...
+		#Everything is built as if $(IS_GAME)
+		C++FLAGS = /EHsc /O2 /W3 /WX /MD /D_USE_MATH_DEFINES /DWINDOWS
+			/GR
+			/arch:SSE2
+			/GS #buffer cookies
+			#/fp:strict
+			/GL #global optimizations
+			/wd4244 #various "loss of data" conversions, e.g. int->float
+			/wd4146 #-1U is still unsigned
+			/wd4800 #int -> bool coercion
+			/wd4305 #truncating double -> float
+			/wd4355 #'this' used in base member initializer list
+		;
+
+		CCFLAGS = $(C++FLAGS) ;
+
+		LINKLIBS = kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib ;
+
+		LINKFLAGS = /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /MACHINE:X86 /INCREMENTAL:NO /NOLOGO /NODEFAULTLIB:LIBC /NODEFAULTLIB:MSVCRTD ;
+		LINKFLAGS += /LTCG ;
+
+		#Link rules that spit the command line into a file, as supplied by:
+		#from: http://www.differentpla.net/content/2004/01/linker-command-line-length
+		rule Link {
+			MODE on $(<) = $(EXEMODE) ;
+			LINKFLAGS on $(<) += $(LINKFLAGS) $(SUBDIRLINKFLAGS) ;
+			LINKLIBS on $(<) ?= "" ;
+			LINKLIBS on $(<) += $(LINKLIBS) ;
+
+			Chmod $(<) ;
+
+			local _i ;
+			StartLink $(<) : $(>) ;
+			for _i in $(>)
+			{
+				LinkItems $(<) : $(_i) ;
+			}
+			FinishLink $(<) : $(>) ;
+		}
+
+		rule StartLink {
+			Clean clean : $(<:S=.rsp) ;
+		}
+
+		actions quietly Link {
+		}
+
+		#file is touched first to prevent a 'Could Not Find ...rsp"
+		actions quietly StartLink {
+			echo xxx > $(<:S=.rsp)
+			del /f /q $(<:S=.rsp)
+		}
+
+		actions together piecemeal quietly LinkItems {
+			ECHO $(>) >> $(<:S=.rsp)
+		}
+
+		actions FinishLink bind NEEDLIBS {
+			$(LINK) $(LINKFLAGS) /out:$(<) $(UNDEFS) @$(<:S=.rsp) $(NEEDLIBS) $(LINKLIBS)
+			del /f /q $(<:S=.rsp)
+		}
+
+
+		#Below is from http://maillist.perforce.com/pipermail/jamming/2000-October/001065.html
+
+		# Resource : builds a resource file
+		#
+		rule Resource
+		{
+		     SEARCH on $(>) = $(SEARCH_SOURCE) ;
+		     MakeLocate $(<) : $(LOCATE_TARGET) ;
+
+		     DEPENDS $(<) : $(>) ;
+		     Clean clean : $(<) ;
+
+		     RCFLAGS on $(<) = $(RCFLAGS) /d$(RCDEFINES) ;
+		}
+
+		actions Resource
+		{
+		     RC $(RCFLAGS) /Fo$(<) $(>)
+		}
+
+		#
+		# LinkResource : Links the resource file into an executable
+		#
+		rule LinkResource
+		{
+		     local t r ;
+
+		     if $(<:S)
+		     {
+		         t = $(<) ;
+		     } else {
+		         t = $(<:S=$(SUFEXE)) ;
+		     }
+
+	    	 r = $(>:S=.res) ;
+
+		     DEPENDS $(t) : $(r) ;
+		     NEEDLIBS on $(t) += $(r) ;
+		}
+
+		#end resource stuff
+		#------------
+		if $(GAME_LIBS) = "" {
+			Echo "GAME_LIBS isn't set, using default location." ;
+			GAME_LIBS = ../game-libs/out ;
+		}
+
+		rule PNGFlags {
+			ObjectFlags $(1) : /I"$(GAME_LIBS)/libpng" ;
+		}
+		rule PNGLibs {
+			local f = $(1:S=$(SUFEXE)) ;
+			LINKFLAGS on $(f) += /LIBPATH:"$(GAME_LIBS)/libpng" ;
+			LINKFLAGS on $(f) += /LIBPATH:"$(GAME_LIBS)/zlib" ;
+			LINKLIBS on $(f) += libpng.lib ;
+			LINKLIBS on $(f) += zlib.lib ;
+		}
+	} #end if(mingw) else ...
+
+} else if $(OS) = MACOSX {
+	C++ = clang++ --std=c++11 -stdlib=libc++ -g -Wall -Werror -msse -msse2 $(EXTRA_FLAGS) ;
+	CC = clang -stdlib=libc++ -g -Wall -Werror $(EXTRA_FLAGS) -msse -msse2 ;
+	LINK = clang --std=c++11 -stdlib=libc++ -g -Wall -Werror -lc++ -msse -msse2 $(EXTRA_FLAGS) ;
+	OPTIM = -O2 ;
+	rule PNGFlags $(1) {
+		ObjectFlags $(1) : -I$(GAME_LIBS)/include/libpng15 ;
+	}
+	rule PNGLibs $(1) {
+		LINKLIBS on $(1) += -L$(GAME_LIBS)/lib -lpng15 -lz ;
+	}
+} else if $(OS) = LINUX {
+	C++ = g++-4.8 $(EXTRA_FLAGS) -g --std=c++0x -Wall -Werror -mfpmath=sse -msse -msse2 ;
+	CC = gcc-4.8 $(EXTRA_FLAGS) -g -Wall -Werror -mfpmath=sse -msse -msse2 ;
+	LINK = g++-4.8 $(EXTRA_FLAGS) -g -Wall -Werror ;
+	rule PNGFlags $(1) {
+		ObjectFlags $(1) : `libpng-config --cflags` ;
+	}
+	rule PNGLibs $(1) {
+		LINKLIBS on $(1) += `libpng-config --ldflags` ;
+	}
+}
