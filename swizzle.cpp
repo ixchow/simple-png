@@ -1,4 +1,5 @@
 #include "load_save_png.hpp"
+#include "pngutil_load.hpp"
 
 #include <iostream>
 #include <string>
@@ -59,11 +60,11 @@ int main(int argc, char **argv) {
 
 	std::vector< uint32_t > data_a,data_b;
 	uint32_t width_a, height_a, width_b, height_b;
-	if (!load_png(argv[1], width_a, height_a, data_a, UpperLeftOrigin)) {
+	if (!pngutil_load(argv[1], width_a, height_a, data_a)) {
 		std::cerr << "Failed to load '" << argv[1] << "'" << std::endl;
 		return 1;
 	}
-	if (!load_png(argv[2], width_b, height_b, data_b, UpperLeftOrigin)) {
+	if (!pngutil_load(argv[2], width_b, height_b, data_b)) {
 		std::cerr << "Failed to load '" << argv[2] << "'" << std::endl;
 		return 1;
 	}
