@@ -22,3 +22,4 @@ PNGUtil blur ;
 PNGUtil disk ;
 PNGUtil downsample ;
 PNGUtil place ;
+PNGUtil header ;
